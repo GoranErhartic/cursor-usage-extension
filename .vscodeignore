@@ -8,3 +8,4 @@ esbuild.mjs
 vitest.config.mts
 **/*.test.ts
 .gitignore
+*.vsix

@@ -3,7 +3,16 @@
   "displayName": "Cursor Usage",
   "description": "Shows Cursor plan usage in the status bar",
   "version": "0.1.0",
-  "publisher": "local",
+  "publisher": "goranerhartic",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/GoranErhartic/cursor-usage-extension.git"
+  },
+  "homepage": "https://github.com/GoranErhartic/cursor-usage-extension#readme",
+  "bugs": {
+    "url": "https://github.com/GoranErhartic/cursor-usage-extension/issues"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },
