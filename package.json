@@ -2,7 +2,7 @@
   "name": "cursor-usage",
   "displayName": "Cursor Usage",
   "description": "Shows Cursor plan usage in the status bar",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "icon": "images/icon.png",
   "publisher": "goranerhartic",
   "license": "MIT",
