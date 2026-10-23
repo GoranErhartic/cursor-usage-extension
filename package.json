@@ -1,0 +1,57 @@
+{
+  "name": "cursor-usage",
+  "displayName": "Cursor Usage",
+  "description": "Shows Cursor plan usage in the status bar",
+  "version": "0.1.0",
+  "publisher": "local",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "cursorUsage.refresh",
+        "title": "Cursor Usage: Refresh"
+      }
+    ],
+    "configuration": {
+      "title": "Cursor Usage",
+      "properties": {
+        "cursorUsage.pollIntervalMinutes": {
+          "type": "number",
+          "default": 5,
+          "minimum": 1,
+          "description": "How often to poll the usage API (minutes)."
+        },
+        "cursorUsage.stateDbPath": {
+          "type": "string",
+          "default": "",
+          "description": "Override path to Cursor state.vscdb (defaults: macOS ~/Library/Application Support/Cursor/User/globalStorage/state.vscdb, Windows %APPDATA%\\Cursor\\User\\globalStorage\\state.vscdb, Linux ~/.config/Cursor/User/globalStorage/state.vscdb)."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "test": "vitest run",
+    "package": "vsce package --no-dependencies",
+    "vscode:prepublish": "npm run compile"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^3.2.1",
+    "esbuild": "^0.28.2",
+    "typescript": "^5.7.2",
+    "vite": "^8.3.5",
+    "vitest": "^5.0.5"
+  }
+}
