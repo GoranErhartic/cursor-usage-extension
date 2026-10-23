@@ -48,7 +48,7 @@ export class UsageStatusBar {
         this.item.backgroundColor = undefined;
         break;
       case "error":
-        this.item.text = "$(warning) Usage";
+        this.item.text = "🔴 Usage";
         this.item.tooltip = view.message;
         this.item.backgroundColor = new vscode.ThemeColor(
           "statusBarItem.warningBackground",
@@ -58,12 +58,12 @@ export class UsageStatusBar {
         const { overall, updatedAt, billingCycleStart, billingCycleEnd } = view;
         this.lastUpdated = updatedAt;
         if (!overall.enabled) {
-          this.item.text = "$(graph) Usage";
+          this.item.text = "🟢 Usage";
           this.item.tooltip = "Plan usage tracking is disabled for this account.";
           this.item.backgroundColor = undefined;
           break;
         }
-        this.item.text = `$(graph) ${formatUsage(overall.used, overall.limit)}`;
+        this.item.text = `🟢 ${formatUsage(overall.used, overall.limit)}`;
         const pct = percentUsed(overall.used, overall.limit);
         const cycleLine =
           billingCycleStart && billingCycleEnd
