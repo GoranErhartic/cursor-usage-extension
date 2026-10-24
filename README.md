@@ -1,5 +1,7 @@
 # Cursor Usage
 
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-Support%20Me-F16061?logo=ko-fi&logoColor=white)](https://ko-fi.com/goranlegenda)
+
 Shows your Cursor plan usage in the status bar (for example `$105.55/$200`). Refreshes every 5 minutes and when you click the item.
 
 ## Requirements
@@ -45,3 +47,11 @@ The extension ID is `goranerhartic.cursor-usage` (publisher `goranerhartic`).
 ## Privacy
 
 The access token is read from your local Cursor database only to call `https://cursor.com/api/usage-summary`. It is not logged or stored by the extension.
+
+## Support
+
+If you find this project useful, consider supporting its development:
+
+[![Ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/goranlegenda)
+
+Or buy me a coffee at [ko-fi.com/goranlegenda](https://ko-fi.com/goranlegenda).
