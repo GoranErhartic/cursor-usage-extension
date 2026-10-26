@@ -30,9 +30,9 @@ Default database paths:
 ## Development
 
 ```bash
-npm install
-npm run compile
-npm test
+pnpm install
+pnpm run compile
+pnpm test
 ```
 
 ## Publishing (Open VSX)
@@ -42,7 +42,7 @@ The extension ID is `goranerhartic.cursor-usage` (publisher `goranerhartic`).
 1. Sign in at [open-vsx.org](https://open-vsx.org) with GitHub, sign the Publisher Agreement and create an access token.
 2. Create the namespace (once): `npx ovsx create-namespace goranerhartic -p <token>`
 3. Claim ownership of the namespace via the Open VSX namespace-claim issue (otherwise it shows as unverified).
-4. Build and publish: `npm run package && npx ovsx publish cursor-usage-<version>.vsix -p <token>`
+4. Build and publish: `pnpm run package && pnpm dlx ovsx publish cursor-usage-<version>.vsix -p <token>`
 
 ## Privacy
 
@@ -52,6 +52,4 @@ The access token is read from your local Cursor database only to call `https://c
 
 If you find this project useful, consider supporting its development:
 
-[![Ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/goranlegenda)
-
-Or buy me a coffee at [ko-fi.com/goranlegenda](https://ko-fi.com/goranlegenda).
+Buy me a coffee at [ko-fi.com/goranlegenda](https://ko-fi.com/goranlegenda).
