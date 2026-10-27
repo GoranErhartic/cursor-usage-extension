@@ -95,10 +95,39 @@ describe("readAccessToken", () => {
       expect(getPassword).not.toHaveBeenCalled();
     });
 
-    it("fails clearly on unsupported platforms", async () => {
+    it("decrypts Linux v11 (keyring) and v10 (fallback) values", async () => {
+      const enc = (pw: string, tag: string) => {
+        const key = pbkdf2Sync(pw, "saltysalt", 1, 16, "sha1");
+        const c = createCipheriv("aes-128-cbc", key, Buffer.alloc(16, 0x20));
+        const body = Buffer.concat([c.update(plain, "utf8"), c.final()]);
+        return SAFE_STORAGE_PREFIX + Buffer.concat([Buffer.from(tag), body]).toString("base64");
+      };
       await expect(
-        decryptSafeStorageValue(encrypt(plain), "linux", async () => password),
-      ).rejects.toMatchObject({ code: "encrypted" });
+        decryptSafeStorageValue(enc(password, "v11"), "linux", { getPassword: async () => password }),
+      ).resolves.toBe(plain);
+      await expect(decryptSafeStorageValue(enc("peanuts", "v10"), "linux")).resolves.toBe(plain);
+    });
+
+    it("decrypts a Windows AES-256-GCM value", async () => {
+      const key = Buffer.alloc(32, 7);
+      const nonce = Buffer.alloc(12, 3);
+      const c = createCipheriv("aes-256-gcm", key, nonce);
+      const ct = Buffer.concat([c.update(plain, "utf8"), c.final()]);
+      const value =
+        SAFE_STORAGE_PREFIX +
+        Buffer.concat([Buffer.from("v10"), nonce, ct, c.getAuthTag()]).toString("base64");
+      await expect(
+        decryptSafeStorageValue(value, "win32", { getWindowsKey: async () => key }),
+      ).resolves.toBe(plain);
+      await expect(
+        decryptSafeStorageValue(value, "win32", { getWindowsKey: async () => Buffer.alloc(32) }),
+      ).rejects.toThrow(/report it at .*issues/);
+    });
+
+    it("gives a reportable error on unsupported platforms", async () => {
+      await expect(
+        decryptSafeStorageValue(encrypt(plain), "freebsd" as NodeJS.Platform),
+      ).rejects.toThrow(/Failed to obtain the decoded JWT session token.*report it/s);
     });
 
     it("fails clearly on wrong password or keychain denial", async () => {

@@ -13,7 +13,7 @@ Shows your Cursor plan usage in the status bar (for example `$105.55/$200`). Ref
 
 Recent Cursor versions store the session token encrypted. On macOS the extension decrypts it using the **Cursor Safe Storage** item in your login Keychain, so macOS will show a prompt asking to allow access the first time (or after Cursor updates). Click **Allow**, or **Always Allow** to avoid repeated prompts. If you deny it, the status bar shows a "Could not decrypt Cursor's access token" error; click it to refresh and try again.
 
-Decryption is currently supported on macOS only. On Windows and Linux, an encrypted token shows an explanatory error. This relies on an undocumented Cursor storage format and may change in future Cursor versions.
+On Windows the key is read from Cursor's `Local State` and unprotected via DPAPI (PowerShell); on Linux the password comes from the Secret Service keyring (`secret-tool`) or Chromium's fallback. These paths are not manually tested: if you see "Failed to obtain the decoded JWT session token", please [report it](https://github.com/GoranErhartic/cursor-usage-extension/issues) with your OS and Cursor version. This relies on an undocumented Cursor storage format and may change in future Cursor versions.
 
 ## Usage
 

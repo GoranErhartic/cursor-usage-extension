@@ -53,16 +53,14 @@
     "compile": "node esbuild.mjs",
     "watch": "node esbuild.mjs --watch",
     "test": "vitest run",
-    "package": "vsce package --no-dependencies",
+    "package": "npx --yes @vscode/vsce@3.9.2 package --no-dependencies",
     "vscode:prepublish": "pnpm run compile"
   },
   "devDependencies": {
     "@types/node": "^22.20.5",
     "@types/vscode": "^1.85.0",
-    "@vscode/vsce": "^3.2.1",
     "esbuild": "^0.28.2",
     "typescript": "^5.7.2",
-    "vite": "^8.3.5",
     "vitest": "^5.0.5"
   }
 }
