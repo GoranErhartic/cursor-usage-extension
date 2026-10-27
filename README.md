@@ -9,6 +9,12 @@ Shows your Cursor plan usage in the status bar (for example `$105.55/$200`). Ref
 - macOS, Windows or Linux (reads the signed-in session from Cursor’s local state database with a built-in, dependency-free SQLite reader)
 - You must be signed in to Cursor in the same user account
 
+### macOS Keychain prompt
+
+Recent Cursor versions store the session token encrypted. On macOS the extension decrypts it using the **Cursor Safe Storage** item in your login Keychain, so macOS will show a prompt asking to allow access the first time (or after Cursor updates). Click **Allow**, or **Always Allow** to avoid repeated prompts. If you deny it, the status bar shows a "Could not decrypt Cursor's access token" error; click it to refresh and try again.
+
+Decryption is currently supported on macOS only. On Windows and Linux, an encrypted token shows an explanatory error. This relies on an undocumented Cursor storage format and may change in future Cursor versions.
+
 ## Usage
 
 1. Run **Extensions: Install from VSIX** or press **F5** in this repo to launch an Extension Development Host.
@@ -46,7 +52,7 @@ The extension ID is `goranerhartic.cursor-usage` (publisher `goranerhartic`).
 
 ## Privacy
 
-The access token is read from your local Cursor database only to call `https://cursor.com/api/usage-summary`. It is not logged or stored by the extension.
+The access token is read from your local Cursor database only to call `https://cursor.com/api/usage-summary`. It is decrypted in memory only (on macOS, via the Keychain item above), and is not logged or stored by the extension.
 
 ## Support
 

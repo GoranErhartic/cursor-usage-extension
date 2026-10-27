@@ -2,9 +2,16 @@ import { execFile } from "node:child_process";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { createCipheriv, pbkdf2Sync } from "node:crypto";
 import { promisify } from "node:util";
-import { afterEach, describe, expect, it } from "vitest";
-import { AuthTokenError, defaultStateDbPath, readAccessToken } from "./authToken";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  AuthTokenError,
+  decryptSafeStorageValue,
+  defaultStateDbPath,
+  readAccessToken,
+  SAFE_STORAGE_PREFIX,
+} from "./authToken";
 
 const execFileAsync = promisify(execFile);
 
@@ -63,6 +70,47 @@ describe("readAccessToken", () => {
     const dbPath = join(dir, "state.vscdb");
     await writeFile(dbPath, "not a database".padEnd(200, " "));
     await expect(readAccessToken(dbPath)).rejects.toMatchObject({ code: "db" });
+  });
+
+  describe("decryptSafeStorageValue", () => {
+    const password = "test-keychain-password";
+    const plain = "header.payload.signature";
+
+    function encrypt(text: string): string {
+      const key = pbkdf2Sync(password, "saltysalt", 1003, 16, "sha1");
+      const cipher = createCipheriv("aes-128-cbc", key, Buffer.alloc(16, 0x20));
+      const body = Buffer.concat([cipher.update(text, "utf8"), cipher.final()]);
+      return SAFE_STORAGE_PREFIX + Buffer.concat([Buffer.from("v10"), body]).toString("base64");
+    }
+
+    it("decrypts a wrapped v10 value", async () => {
+      await expect(
+        decryptSafeStorageValue(encrypt(plain), "darwin", async () => password),
+      ).resolves.toBe(plain);
+    });
+
+    it("passes plain values through without touching the keychain", async () => {
+      const getPassword = vi.fn(async () => password);
+      await expect(decryptSafeStorageValue(plain, "darwin", getPassword)).resolves.toBe(plain);
+      expect(getPassword).not.toHaveBeenCalled();
+    });
+
+    it("fails clearly on unsupported platforms", async () => {
+      await expect(
+        decryptSafeStorageValue(encrypt(plain), "linux", async () => password),
+      ).rejects.toMatchObject({ code: "encrypted" });
+    });
+
+    it("fails clearly on wrong password or keychain denial", async () => {
+      await expect(
+        decryptSafeStorageValue(encrypt(plain), "darwin", async () => "wrong"),
+      ).rejects.toMatchObject({ code: "encrypted" });
+      await expect(
+        decryptSafeStorageValue(encrypt(plain), "darwin", async () => {
+          throw new Error("denied");
+        }),
+      ).rejects.toMatchObject({ code: "encrypted" });
+    });
   });
 
   it("resolves per-platform default paths", () => {
