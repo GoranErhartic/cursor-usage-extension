@@ -1,36 +1,24 @@
 import * as vscode from "vscode";
-import { AuthSetup, type RefreshResult } from "./authSetup";
 import { AuthStore } from "./authStore";
 import {
-  AuthTokenError,
-  DEFAULT_STATE_DB_PATH,
-  readAccessToken,
-} from "./authToken";
+  buildLoginUrl,
+  createLoginHandshake,
+  LoginError,
+  pollForLoginTokens,
+  refreshSession,
+} from "./browserLogin";
 import { UsageStatusBar } from "./statusBar";
-import {
-  fetchUsageSummary,
-  fetchUsageSummaryWithCookie,
-  UsageFetchError,
-  usageErrorFromCode,
-  type UsageSummary,
-} from "./usageApi";
+import { fetchUsageSummary, UsageFetchError, usageErrorFromCode } from "./usageApi";
+import { fetchUsageWithRefresh } from "./usageWithRefresh";
 
 let pollTimer: ReturnType<typeof setInterval> | undefined;
 let statusBar: UsageStatusBar | undefined;
 let authStore: AuthStore | undefined;
-let authSetup: AuthSetup | undefined;
-/** Refreshes run one after another so a cookie saved mid-poll is still applied. */
+/** Refreshes run one after another so two polls never refresh the session at once. */
 let refreshQueue: Promise<unknown> = Promise.resolve();
-/** The setup prompt is shown at most once per session; "Not now" keeps the status bar item. */
-let setupOfferShown = false;
-
-function getStateDbPath(): string {
-  const configured = vscode.workspace
-    .getConfiguration("cursorUsage")
-    .get<string>("stateDbPath")
-    ?.trim();
-  return configured || DEFAULT_STATE_DB_PATH;
-}
+/** The sign-in prompt is shown at most once per session. */
+let signInOfferShown = false;
+let signInInProgress = false;
 
 function getPollIntervalMs(): number {
   const minutes = vscode.workspace
@@ -39,64 +27,39 @@ function getPollIntervalMs(): number {
   return Math.max(1, minutes) * 60 * 1000;
 }
 
-/** A user-facing reason when authorization must be (re)chosen, otherwise undefined. */
-function setupReason(err: unknown, mode: string | undefined): string | undefined {
-  if (err instanceof AuthTokenError) {
-    if (err.code === "consent") {
-      return "Cursor's login token is encrypted.";
-    }
-    if (err.code === "missing") {
-      return "No Cursor sign-in or session cookie found.";
-    }
+function showSignIn(message: string, offer: boolean): void {
+  statusBar?.render({ kind: "signin", message });
+  if (offer && !signInOfferShown) {
+    signInOfferShown = true;
+    void vscode.window
+      .showInformationMessage(`Cursor Usage: ${message}`, "Sign in")
+      .then((choice) => {
+        if (choice === "Sign in") {
+          void vscode.commands.executeCommand("cursorUsage.signIn");
+        }
+      });
   }
-  if (err instanceof UsageFetchError && mode === "manual" && err.code === "unauthorized") {
-    return "Session expired. Paste a new session cookie.";
-  }
-  return undefined;
 }
 
-function renderError(err: unknown): RefreshResult {
-  if (!statusBar) {
-    return { ok: false, code: "unknown", message: "Status bar unavailable." };
+async function refreshOnce(): Promise<void> {
+  const store = authStore;
+  if (!statusBar || !store) {
+    return;
   }
-  if (err instanceof AuthTokenError) {
-    statusBar.render({ kind: "error", code: "no-token", message: err.message });
-    return { ok: false, code: err.code, message: err.message };
-  }
-  if (err instanceof UsageFetchError) {
-    const message = usageErrorFromCode(err.code);
-    statusBar.render({ kind: "error", code: err.code, message });
-    return { ok: false, code: err.code, message };
-  }
-  statusBar.renderFromError(err);
-  return {
-    ok: false,
-    code: "unknown",
-    message: err instanceof Error ? err.message : "Failed to load usage.",
-  };
-}
-
-async function fetchCurrentUsage(mode: string | undefined): Promise<UsageSummary> {
-  if (mode === "manual") {
-    const cookie = await authStore?.getCookie();
-    if (!cookie) {
-      throw new AuthTokenError("No session cookie saved.", "missing");
-    }
-    return fetchUsageSummaryWithCookie(cookie);
-  }
-  // Without vault consent this throws `consent` for encrypted tokens before any OS prompt.
-  const token = await readAccessToken(getStateDbPath(), { allowVault: mode === "vault" });
-  return fetchUsageSummary(token);
-}
-
-async function refreshOnce(): Promise<RefreshResult> {
-  if (!statusBar || !authStore) {
-    return { ok: false, code: "unknown", message: "Extension not active." };
+  const tokens = await store.getTokens();
+  if (!tokens) {
+    showSignIn("Sign in to Cursor in your browser to see usage.", true);
+    return;
   }
   statusBar.render({ kind: "loading" });
-  const mode = authStore.getMode();
   try {
-    const summary = await fetchCurrentUsage(mode);
+    const summary = await fetchUsageWithRefresh({
+      tokens,
+      fetchUsage: fetchUsageSummary,
+      refresh: (refreshToken) => refreshSession(refreshToken),
+      save: (next) => store.setTokens(next),
+      clear: () => store.clear(),
+    });
     statusBar.render({
       kind: "ok",
       overall: summary.overall,
@@ -104,29 +67,116 @@ async function refreshOnce(): Promise<RefreshResult> {
       billingCycleStart: summary.billingCycleStart,
       billingCycleEnd: summary.billingCycleEnd,
     });
-    return { ok: true };
   } catch (err) {
-    const reason = setupReason(err, mode);
-    if (reason) {
-      statusBar.render({ kind: "setup", message: reason });
-      if (!setupOfferShown && authSetup) {
-        setupOfferShown = true;
-        void authSetup.offerChoice(reason);
-      }
-      return {
-        ok: false,
-        code: err instanceof AuthTokenError ? err.code : "unauthorized",
-        message: reason,
-      };
+    if (err instanceof UsageFetchError && err.code === "no-token") {
+      showSignIn("Session ended. Sign in to Cursor again.", true);
+      return;
     }
-    return renderError(err);
+    if (err instanceof UsageFetchError) {
+      statusBar.render({ kind: "error", code: err.code, message: usageErrorFromCode(err.code) });
+      return;
+    }
+    statusBar.renderFromError(err);
   }
 }
 
-function refreshUsage(): Promise<RefreshResult> {
+function refreshUsage(): Promise<void> {
   const run = refreshQueue.then(refreshOnce);
   refreshQueue = run.catch(() => undefined);
   return run;
+}
+
+async function signIn(): Promise<void> {
+  const store = authStore;
+  if (!store || signInInProgress) {
+    return;
+  }
+  signInInProgress = true;
+  try {
+    const handshake = createLoginHandshake();
+    const opened = await vscode.env.openExternal(vscode.Uri.parse(buildLoginUrl(handshake)));
+    if (!opened) {
+      void vscode.window.showErrorMessage("Cursor Usage: could not open the browser.");
+      return;
+    }
+    const tokens = await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: "Cursor Usage: waiting for you to sign in in the browser…",
+        cancellable: true,
+      },
+      (_progress, cancel) => {
+        const controller = new AbortController();
+        cancel.onCancellationRequested(() => controller.abort());
+        return pollForLoginTokens(handshake, { signal: controller.signal });
+      },
+    );
+    // Verify the session works before saving it.
+    await fetchUsageSummary(tokens.accessToken);
+    await store.setTokens(tokens);
+    await store.clearLegacy();
+    void vscode.window.showInformationMessage("Cursor Usage: signed in.");
+    await refreshUsage();
+  } catch (err) {
+    if (err instanceof LoginError && err.code === "cancelled") {
+      return;
+    }
+    const message =
+      err instanceof LoginError
+        ? err.message
+        : err instanceof UsageFetchError
+          ? usageErrorFromCode(err.code)
+          : "Sign-in failed.";
+    void vscode.window.showErrorMessage(`Cursor Usage: ${message}`);
+  } finally {
+    signInInProgress = false;
+  }
+}
+
+async function signOut(): Promise<void> {
+  await authStore?.clear();
+  signInOfferShown = true;
+  showSignIn("Signed out.", false);
+}
+
+export function activate(context: vscode.ExtensionContext): void {
+  statusBar = new UsageStatusBar(100);
+  statusBar.show();
+
+  authStore = new AuthStore(context.globalState, context.secrets);
+  void authStore.clearLegacy();
+
+  const refreshCmd = vscode.commands.registerCommand("cursorUsage.refresh", () => {
+    void refreshUsage();
+  });
+  const signInCmd = vscode.commands.registerCommand("cursorUsage.signIn", () => {
+    void signIn();
+  });
+  const signOutCmd = vscode.commands.registerCommand("cursorUsage.signOut", () => {
+    void signOut();
+  });
+
+  const onConfigChange = vscode.workspace.onDidChangeConfiguration((e) => {
+    if (e.affectsConfiguration("cursorUsage.pollIntervalMinutes")) {
+      startPolling();
+      void refreshUsage();
+    }
+  });
+
+  context.subscriptions.push(refreshCmd, signInCmd, signOutCmd, onConfigChange, {
+    dispose: () => {
+      if (pollTimer) {
+        clearInterval(pollTimer);
+        pollTimer = undefined;
+      }
+      statusBar?.dispose();
+      statusBar = undefined;
+      authStore = undefined;
+    },
+  });
+
+  startPolling();
+  void refreshUsage();
 }
 
 function startPolling(): void {
@@ -136,67 +186,6 @@ function startPolling(): void {
   pollTimer = setInterval(() => {
     void refreshUsage();
   }, getPollIntervalMs());
-}
-
-export function activate(context: vscode.ExtensionContext): void {
-  statusBar = new UsageStatusBar(100);
-  statusBar.show();
-
-  authStore = new AuthStore(context.globalState, context.secrets);
-  authSetup = new AuthSetup({ store: authStore, refresh: refreshUsage });
-  const setup = authSetup;
-
-  const refreshCmd = vscode.commands.registerCommand("cursorUsage.refresh", () => {
-    void refreshUsage();
-  });
-  const setupCmd = vscode.commands.registerCommand("cursorUsage.setupAuth", () => {
-    void setup.chooseMethod();
-  });
-  const cookieCmd = vscode.commands.registerCommand("cursorUsage.useManualCookie", () => {
-    void setup.useManualCookie();
-  });
-  const vaultCmd = vscode.commands.registerCommand("cursorUsage.allowVaultAccess", () => {
-    void setup.allowVaultAccess();
-  });
-  const clearCmd = vscode.commands.registerCommand("cursorUsage.clearAuth", () => {
-    void setup.clearAuth();
-  });
-
-  const onConfigChange = vscode.workspace.onDidChangeConfiguration((e) => {
-    if (e.affectsConfiguration("cursorUsage.pollIntervalMinutes")) {
-      startPolling();
-    }
-    if (
-      e.affectsConfiguration("cursorUsage.stateDbPath") ||
-      e.affectsConfiguration("cursorUsage.pollIntervalMinutes")
-    ) {
-      void refreshUsage();
-    }
-  });
-
-  context.subscriptions.push(
-    refreshCmd,
-    setupCmd,
-    cookieCmd,
-    vaultCmd,
-    clearCmd,
-    onConfigChange,
-    {
-      dispose: () => {
-        if (pollTimer) {
-          clearInterval(pollTimer);
-          pollTimer = undefined;
-        }
-        statusBar?.dispose();
-        statusBar = undefined;
-        authSetup = undefined;
-        authStore = undefined;
-      },
-    },
-  );
-
-  startPolling();
-  void refreshUsage();
 }
 
 export function deactivate(): void {

@@ -84,17 +84,6 @@ export async function fetchUsageSummary(accessToken: string): Promise<UsageSumma
   return requestUsageSummary(cookieValue, accessToken);
 }
 
-/**
- * Fetches usage with a `WorkosCursorSessionToken` cookie value the user pasted
- * (already in canonical form, see `normalizeSessionCookie`). Never logs the value.
- */
-export async function fetchUsageSummaryWithCookie(sessionCookie: string): Promise<UsageSummary> {
-  if (!sessionCookie) {
-    throw new UsageFetchError("No session cookie configured.", "no-token");
-  }
-  return requestUsageSummary(sessionCookie);
-}
-
 async function requestUsageSummary(
   cookieValue: string,
   fallbackAccessToken?: string,

@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { AUTH_MODE_KEY, AuthStore, SESSION_COOKIE_KEY } from "./authStore";
+import {
+  ACCESS_TOKEN_KEY,
+  AuthStore,
+  LEGACY_AUTH_MODE_KEY,
+  LEGACY_SESSION_COOKIE_KEY,
+  REFRESH_TOKEN_KEY,
+} from "./authStore";
 
 class FakeState {
   readonly values = new Map<string, unknown>();
@@ -29,38 +35,45 @@ class FakeSecrets {
 }
 
 describe("AuthStore", () => {
-  it("has no mode until one is chosen", () => {
-    const store = new AuthStore(new FakeState(), new FakeSecrets());
-    expect(store.getMode()).toBeUndefined();
-  });
-
-  it("persists mode in the state store and ignores unknown values", async () => {
-    const state = new FakeState();
-    const store = new AuthStore(state, new FakeSecrets());
-    await store.setMode("vault");
-    expect(store.getMode()).toBe("vault");
-    state.values.set(AUTH_MODE_KEY, "bogus");
-    expect(store.getMode()).toBeUndefined();
-  });
-
-  it("keeps the cookie in SecretStorage, never in the state store", async () => {
+  it("keeps tokens in SecretStorage only", async () => {
     const state = new FakeState();
     const secrets = new FakeSecrets();
     const store = new AuthStore(state, secrets);
-    await store.setCookie("uid%3A%3Ajwt.a.b");
-    expect(await store.getCookie()).toBe("uid%3A%3Ajwt.a.b");
-    expect(secrets.values.get(SESSION_COOKIE_KEY)).toBe("uid%3A%3Ajwt.a.b");
-    expect([...state.values.values()]).not.toContain("uid%3A%3Ajwt.a.b");
+    await store.setTokens({ accessToken: "a", refreshToken: "r" });
+    expect(secrets.values.get(ACCESS_TOKEN_KEY)).toBe("a");
+    expect(secrets.values.get(REFRESH_TOKEN_KEY)).toBe("r");
+    expect(state.values.size).toBe(0);
+    expect(await store.getTokens()).toEqual({ accessToken: "a", refreshToken: "r" });
   });
 
-  it("clear removes both the mode and the cookie", async () => {
+  it("returns undefined when a token is missing", async () => {
+    const secrets = new FakeSecrets();
+    secrets.values.set(ACCESS_TOKEN_KEY, "a");
+    expect(await new AuthStore(new FakeState(), secrets).getTokens()).toBeUndefined();
+  });
+
+  it("clear removes tokens and legacy 0.7.0 data", async () => {
     const state = new FakeState();
     const secrets = new FakeSecrets();
     const store = new AuthStore(state, secrets);
-    await store.setMode("manual");
-    await store.setCookie("x");
+    await store.setTokens({ accessToken: "a", refreshToken: "r" });
+    secrets.values.set(LEGACY_SESSION_COOKIE_KEY, "c");
+    state.values.set(LEGACY_AUTH_MODE_KEY, "manual");
     await store.clear();
-    expect(store.getMode()).toBeUndefined();
-    expect(await store.getCookie()).toBeUndefined();
+    expect(secrets.values.size).toBe(0);
+    expect(state.values.size).toBe(0);
+  });
+
+  it("clearLegacy keeps current tokens", async () => {
+    const state = new FakeState();
+    const secrets = new FakeSecrets();
+    const store = new AuthStore(state, secrets);
+    await store.setTokens({ accessToken: "a", refreshToken: "r" });
+    secrets.values.set(LEGACY_SESSION_COOKIE_KEY, "c");
+    state.values.set(LEGACY_AUTH_MODE_KEY, "vault");
+    await store.clearLegacy();
+    expect(secrets.values.has(LEGACY_SESSION_COOKIE_KEY)).toBe(false);
+    expect(state.values.size).toBe(0);
+    expect(await store.getTokens()).toBeDefined();
   });
 });
