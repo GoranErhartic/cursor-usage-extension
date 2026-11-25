@@ -31,7 +31,7 @@ export const DEFAULT_STATE_DB_PATH = defaultStateDbPath();
 export class AuthTokenError extends Error {
   constructor(
     message: string,
-    readonly code: "missing" | "db" | "timeout" | "encrypted",
+    readonly code: "missing" | "db" | "timeout" | "encrypted" | "consent",
   ) {
     super(message);
     this.name = "AuthTokenError";
@@ -195,24 +195,60 @@ export async function decryptSafeStorageValue(
   }
 }
 
-async function readTokenOnce(dbPath: string): Promise<string> {
+/**
+ * True when reading `value` needs the OS secure store (Keychain, DPAPI, keyring).
+ * Linux `v10` values use Chromium's built-in fallback password, so they need no consent.
+ */
+export function requiresVaultAccess(
+  value: string,
+  platform: NodeJS.Platform = process.platform,
+): boolean {
+  if (!value.startsWith(SAFE_STORAGE_PREFIX)) {
+    return false;
+  }
+  if (platform === "linux") {
+    const version = Buffer.from(value.slice(SAFE_STORAGE_PREFIX.length), "base64")
+      .subarray(0, 3)
+      .toString("latin1");
+    return version !== "v10";
+  }
+  return true;
+}
+
+export interface ReadAccessTokenOptions {
+  /** Permit reading the OS secure store. Without it, encrypted tokens throw `consent`. */
+  allowVault?: boolean;
+  platform?: NodeJS.Platform;
+}
+
+async function readTokenOnce(dbPath: string, options: ReadAccessTokenOptions): Promise<string> {
+  const platform = options.platform ?? process.platform;
   const stored = (await readKeyValue(dbPath, "ItemTable", TOKEN_KEY))?.trim();
   if (!stored) {
     throw new AuthTokenError("No Cursor access token in state database.", "missing");
   }
-  return decryptSafeStorageValue(stored);
+  if (!options.allowVault && requiresVaultAccess(stored, platform)) {
+    throw new AuthTokenError(
+      "Cursor's access token is encrypted. Choose how Cursor Usage should authorize.",
+      "consent",
+    );
+  }
+  return decryptSafeStorageValue(stored, platform);
 }
 
-export async function readAccessToken(dbPath: string): Promise<string> {
+export async function readAccessToken(
+  dbPath: string,
+  options: ReadAccessTokenOptions = {},
+): Promise<string> {
   try {
-    return await readTokenOnce(dbPath);
+    return await readTokenOnce(dbPath, options);
   } catch (err) {
     if (err instanceof AuthTokenError) {
       throw err;
     }
     // Retry once: Cursor may be mid-write.
     try {
-      return await readTokenOnce(dbPath);
+      return await readTokenOnce(dbPath, options);
     } catch (retryErr) {
       if (retryErr instanceof AuthTokenError) {
         throw retryErr;

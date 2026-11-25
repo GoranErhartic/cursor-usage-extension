@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildSessionCookieValue,
   decodeJwtPayload,
+  normalizeSessionCookie,
   userIdFromAccessToken,
 } from "./jwt";
 
@@ -38,5 +39,42 @@ describe("buildSessionCookieValue", () => {
   it("builds userId%3A%3Atoken", () => {
     const token = fakeJwt({ sub: "auth0|uid" });
     expect(buildSessionCookieValue(token)).toBe(`uid%3A%3A${token}`);
+  });
+});
+
+describe("normalizeSessionCookie", () => {
+  const jwt = fakeJwt({ sub: "auth0|user_123" });
+
+  it("accepts the canonical raw cookie value", () => {
+    expect(normalizeSessionCookie(`user_123%3A%3A${jwt}`)).toBe(`user_123%3A%3A${jwt}`);
+  });
+
+  it("re-encodes a :: separator", () => {
+    expect(normalizeSessionCookie(`user_123::${jwt}`)).toBe(`user_123%3A%3A${jwt}`);
+  });
+
+  it("accepts a lowercase-encoded separator", () => {
+    expect(normalizeSessionCookie(`user_123%3a%3a${jwt}`)).toBe(`user_123%3A%3A${jwt}`);
+  });
+
+  it("strips the cookie name, quotes and trailing semicolon", () => {
+    expect(normalizeSessionCookie(`"WorkosCursorSessionToken=user_123%3A%3A${jwt}";`)).toBe(
+      `user_123%3A%3A${jwt}`,
+    );
+  });
+
+  it("strips an auth0 prefix from the user id", () => {
+    expect(normalizeSessionCookie(`auth0|user_123%3A%3A${jwt}`)).toBe(`user_123%3A%3A${jwt}`);
+  });
+
+  it("derives the user id from a bare JWT", () => {
+    expect(normalizeSessionCookie(jwt)).toBe(`user_123%3A%3A${jwt}`);
+  });
+
+  it("rejects values that are not session cookies", () => {
+    expect(normalizeSessionCookie("")).toBeNull();
+    expect(normalizeSessionCookie("hello world")).toBeNull();
+    expect(normalizeSessionCookie(`user_123%3A%3Anot-a-jwt`)).toBeNull();
+    expect(normalizeSessionCookie(fakeJwt({}))).toBeNull();
   });
 });

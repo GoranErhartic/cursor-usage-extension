@@ -30,6 +30,22 @@
       {
         "command": "cursorUsage.refresh",
         "title": "Cursor Usage: Refresh"
+      },
+      {
+        "command": "cursorUsage.setupAuth",
+        "title": "Cursor Usage: Set Up Authorization"
+      },
+      {
+        "command": "cursorUsage.useManualCookie",
+        "title": "Cursor Usage: Paste Session Cookie"
+      },
+      {
+        "command": "cursorUsage.allowVaultAccess",
+        "title": "Cursor Usage: Allow Vault Access"
+      },
+      {
+        "command": "cursorUsage.clearAuth",
+        "title": "Cursor Usage: Clear Saved Authorization"
       }
     ],
     "configuration": {

@@ -6,14 +6,45 @@ Shows your Cursor plan usage in the status bar (for example `$105.55/$200`). Ref
 
 ## Requirements
 
-- macOS, Windows or Linux (reads the signed-in session from Cursor’s local state database with a built-in, dependency-free SQLite reader)
-- You must be signed in to Cursor in the same user account
+- macOS, Windows or Linux
+- Either a signed-in Cursor on the same user account (vault access), or a session cookie copied from cursor.com
 
-### macOS Keychain prompt
+### Authorization
 
-Recent Cursor versions store the session token encrypted. On macOS the extension decrypts it using the **Cursor Safe Storage** item in your login Keychain, so macOS will show a prompt asking to allow access the first time (or after Cursor updates). Click **Allow**, or **Always Allow** to avoid repeated prompts. If you deny it, the status bar shows a "Could not decrypt Cursor's access token" error; click it to refresh and try again.
+Recent Cursor versions store the session token encrypted. The extension never opens the OS secure store on its own. The first time it needs authorization, the status bar shows `$(key) Usage: set up` and a one-time prompt offers two options:
 
-On Windows the key is read from Cursor's `Local State` and unprotected via DPAPI (PowerShell); on Linux the password comes from the Secret Service keyring (`secret-tool`) or Chromium's fallback. These paths are not manually tested: if you see "Failed to obtain the decoded JWT session token", please [report it](https://github.com/GoranErhartic/cursor-usage-extension/issues) with your OS and Cursor version. This relies on an undocumented Cursor storage format and may change in future Cursor versions.
+1. **Paste session cookie (no system prompts).** Copy one value from your browser and paste it into VS Code. The value is stored in VS Code's SecretStorage and checked against cursor.com before it is saved. It must be pasted again when your browser session expires.
+2. **Allow vault access (automatic).** The extension reads Cursor's own login token from the OS secure store:
+   - macOS: the **Cursor Safe Storage** item in your login Keychain. macOS asks for access; choose **Always Allow** to avoid repeated prompts.
+   - Windows: Cursor's `Local State` key, unprotected with DPAPI for your user (via PowerShell).
+   - Linux: the Secret Service keyring (GNOME Keyring or KWallet, via `secret-tool`). Chromium's built-in fallback is used without any keyring access.
+
+Plain (unencrypted) tokens are used without any prompt. Click the status bar item or run **Cursor Usage: Set Up Authorization** to change your choice at any time.
+
+#### Get your session cookie (step by step)
+
+1. Open [cursor.com/dashboard](https://cursor.com/dashboard) and sign in.
+2. Open developer tools: `F12`, or `Cmd+Option+I` on macOS, `Ctrl+Shift+I` on Windows and Linux.
+3. Go to the cookie storage:
+   - Chrome or Edge: **Application** tab, then **Cookies**, then `https://cursor.com`.
+   - Firefox: **Storage** tab, then **Cookies**, then `https://cursor.com`.
+   - Safari: enable the Develop menu first (Settings, Advanced), then the **Storage** tab, then **Cookies**.
+4. Find `WorkosCursorSessionToken` and copy its **Value**.
+5. Run **Cursor Usage: Paste Session Cookie** and paste the value.
+
+The extension also accepts the full `WorkosCursorSessionToken=...` pair or a bare session JWT.
+
+On Windows and Linux the vault path is not manually tested: if you see "Failed to obtain the decoded JWT session token", choose the session cookie option, or [report it](https://github.com/GoranErhartic/cursor-usage-extension/issues) with your OS and Cursor version. The vault path relies on an undocumented Cursor storage format and may change in future Cursor versions.
+
+### Commands
+
+| Command | What it does |
+|--------|--------------|
+| **Cursor Usage: Refresh** | Refreshes usage now |
+| **Cursor Usage: Set Up Authorization** | Explains both options and runs the one you pick |
+| **Cursor Usage: Paste Session Cookie** | Guided cookie setup |
+| **Cursor Usage: Allow Vault Access** | Reads Cursor's encrypted token from the OS secure store |
+| **Cursor Usage: Clear Saved Authorization** | Deletes the saved cookie and forgets the chosen option |
 
 ## Usage
 
@@ -52,7 +83,7 @@ The extension ID is `goranerhartic.cursor-usage` (publisher `goranerhartic`).
 
 ## Privacy
 
-The access token is read from your local Cursor database only to call `https://cursor.com/api/usage-summary`. It is decrypted in memory only (on macOS, via the Keychain item above), and is not logged or stored by the extension.
+The extension sends your session to `https://cursor.com/api/usage-summary` only. With vault access, it reads Cursor's token from your local database and decrypts it in memory. With a pasted cookie, the value is kept in VS Code's SecretStorage. Neither is written to settings or logs.
 
 ## Support
 

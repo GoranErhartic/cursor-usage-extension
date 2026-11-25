@@ -12,7 +12,9 @@ export type StatusBarView =
       billingCycleStart?: string;
       billingCycleEnd?: string;
     }
-  | { kind: "error"; message: string; code?: UsageFetchErrorCode };
+  | { kind: "error"; message: string; code?: UsageFetchErrorCode }
+  /** No usable authorization yet: clicking opens the setup picker. */
+  | { kind: "setup"; message: string };
 
 function formatCycleDate(iso: string): string {
   const d = new Date(iso);
@@ -41,7 +43,16 @@ export class UsageStatusBar {
   }
 
   render(view: StatusBarView): void {
+    this.item.command =
+      view.kind === "setup" ? "cursorUsage.setupAuth" : "cursorUsage.refresh";
     switch (view.kind) {
+      case "setup":
+        this.item.text = "$(key) Usage: set up";
+        this.item.tooltip = `${view.message}\nClick to choose how to authorize Cursor Usage.`;
+        this.item.backgroundColor = new vscode.ThemeColor(
+          "statusBarItem.warningBackground",
+        );
+        break;
       case "loading":
         this.item.text = "$(sync~spin) Usage";
         this.item.tooltip = "Loading Cursor plan usage…";

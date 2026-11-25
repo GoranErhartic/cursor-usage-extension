@@ -10,6 +10,7 @@ import {
   decryptSafeStorageValue,
   defaultStateDbPath,
   readAccessToken,
+  requiresVaultAccess,
   SAFE_STORAGE_PREFIX,
 } from "./authToken";
 
@@ -155,5 +156,65 @@ describe("readAccessToken", () => {
     expect(defaultStateDbPath("win32", { APPDATA: "/a" }, "/h")).toBe(
       join("/a", "Cursor", "User", "globalStorage", "state.vscdb"),
     );
+  });
+});
+
+describe("vault consent", () => {
+  let dir: string;
+
+  afterEach(async () => {
+    if (dir) {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  function wrapped(version: string): string {
+    return SAFE_STORAGE_PREFIX + Buffer.from(version + "body").toString("base64");
+  }
+
+  it("needs consent for encrypted values on macOS and Windows", () => {
+    expect(requiresVaultAccess(wrapped("v10"), "darwin")).toBe(true);
+    expect(requiresVaultAccess(wrapped("v10"), "win32")).toBe(true);
+  });
+
+  it("needs consent for Linux v11 keyring values but not v10 fallback values", () => {
+    expect(requiresVaultAccess(wrapped("v11"), "linux")).toBe(true);
+    expect(requiresVaultAccess(wrapped("v10"), "linux")).toBe(false);
+  });
+
+  it("never needs consent for plain values", () => {
+    expect(requiresVaultAccess("header.payload.signature", "darwin")).toBe(false);
+  });
+
+  it("throws consent for an encrypted token without touching the OS store", async () => {
+    dir = await mkdtemp(join(tmpdir(), "cursor-usage-"));
+    const dbPath = join(dir, "state.vscdb");
+    await execFileAsync("sqlite3", [
+      dbPath,
+      "CREATE TABLE ItemTable (key TEXT PRIMARY KEY, value TEXT);",
+    ]);
+    await execFileAsync("sqlite3", [
+      dbPath,
+      `INSERT INTO ItemTable (key, value) VALUES ('cursorAuth/accessToken', '${wrapped("v10")}');`,
+    ]);
+
+    await expect(readAccessToken(dbPath, { platform: "darwin" })).rejects.toMatchObject({
+      code: "consent",
+    });
+  });
+
+  it("returns plain tokens without consent", async () => {
+    dir = await mkdtemp(join(tmpdir(), "cursor-usage-"));
+    const dbPath = join(dir, "state.vscdb");
+    await execFileAsync("sqlite3", [
+      dbPath,
+      "CREATE TABLE ItemTable (key TEXT PRIMARY KEY, value TEXT);",
+    ]);
+    await execFileAsync("sqlite3", [
+      dbPath,
+      "INSERT INTO ItemTable (key, value) VALUES ('cursorAuth/accessToken', 'plain.jwt.value');",
+    ]);
+
+    await expect(readAccessToken(dbPath, { platform: "darwin" })).resolves.toBe("plain.jwt.value");
   });
 });

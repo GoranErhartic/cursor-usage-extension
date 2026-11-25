@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.0
+
+- No more unprompted OS secure-store access. When authorization is needed, the status bar shows `Usage: set up` and a one-time prompt lets you choose:
+  - **Paste session cookie**: a guided, step-by-step setup for copying `WorkosCursorSessionToken` from cursor.com. The value is verified and stored in SecretStorage.
+  - **Allow vault access**: reads Cursor's encrypted token from the macOS Keychain, Windows DPAPI or the Linux keyring after you confirm.
+- New commands: Set Up Authorization, Paste Session Cookie, Allow Vault Access, Clear Saved Authorization.
+- Expired cookies are reported as "Session expired. Paste a new session cookie."
+
 ## 0.6.0
 
 - Fixed the "Sign in to Cursor to see usage" error on recent Cursor versions, which store the access token encrypted (`cursor-safe-storage:v1:`). On macOS the extension now decrypts it using the "Cursor Safe Storage" Keychain item; macOS will ask you to allow Keychain access.

@@ -81,6 +81,24 @@ export async function fetchUsageSummary(accessToken: string): Promise<UsageSumma
     throw new UsageFetchError("Could not derive session from access token.", "no-token");
   }
 
+  return requestUsageSummary(cookieValue, accessToken);
+}
+
+/**
+ * Fetches usage with a `WorkosCursorSessionToken` cookie value the user pasted
+ * (already in canonical form, see `normalizeSessionCookie`). Never logs the value.
+ */
+export async function fetchUsageSummaryWithCookie(sessionCookie: string): Promise<UsageSummary> {
+  if (!sessionCookie) {
+    throw new UsageFetchError("No session cookie configured.", "no-token");
+  }
+  return requestUsageSummary(sessionCookie);
+}
+
+async function requestUsageSummary(
+  cookieValue: string,
+  fallbackAccessToken?: string,
+): Promise<UsageSummary> {
   let response: Response;
   try {
     response = await fetchWithCookie(cookieValue);
@@ -90,10 +108,11 @@ export async function fetchUsageSummary(accessToken: string): Promise<UsageSumma
 
   if (
     (response.status === 401 || response.status === 403) &&
-    cookieValue !== accessToken
+    fallbackAccessToken &&
+    cookieValue !== fallbackAccessToken
   ) {
     try {
-      response = await fetchWithCookie(accessToken);
+      response = await fetchWithCookie(fallbackAccessToken);
     } catch {
       throw new UsageFetchError("Network error fetching usage.", "network");
     }
