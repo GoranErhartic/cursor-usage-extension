@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.0
+
+- **Breaking:** the only authorization method is now browser sign-in, which supports SSO. Sign in once after upgrading; the status bar shows `Usage: sign in` until you do.
+- The access token is refreshed automatically when it expires.
+- Removed: reading Cursor's local login (`state.vscdb`), Keychain/DPAPI/keyring decryption, pasted session cookies, vault access and the `cursorUsage.stateDbPath` setting.
+- Commands: `Sign In` and `Sign Out` replace Set Up Authorization, Paste Session Cookie, Allow Vault Access and Clear Saved Authorization.
+- Data saved by 0.7.0 is deleted.
+
 ## 0.7.0
 
 - No more unprompted OS secure-store access. When authorization is needed, the status bar shows `Usage: set up` and a one-time prompt lets you choose:

@@ -2,7 +2,7 @@
   "name": "cursor-usage",
   "displayName": "Cursor Usage",
   "description": "Shows Cursor plan usage in the status bar",
-  "version": "0.6.1",
+  "version": "1.0.0",
   "icon": "images/icon.png",
   "publisher": "goranerhartic",
   "license": "MIT",
@@ -32,20 +32,12 @@
         "title": "Cursor Usage: Refresh"
       },
       {
-        "command": "cursorUsage.setupAuth",
-        "title": "Cursor Usage: Set Up Authorization"
+        "command": "cursorUsage.signIn",
+        "title": "Cursor Usage: Sign In"
       },
       {
-        "command": "cursorUsage.useManualCookie",
-        "title": "Cursor Usage: Paste Session Cookie"
-      },
-      {
-        "command": "cursorUsage.allowVaultAccess",
-        "title": "Cursor Usage: Allow Vault Access"
-      },
-      {
-        "command": "cursorUsage.clearAuth",
-        "title": "Cursor Usage: Clear Saved Authorization"
+        "command": "cursorUsage.signOut",
+        "title": "Cursor Usage: Sign Out"
       }
     ],
     "configuration": {
@@ -56,11 +48,6 @@
           "default": 5,
           "minimum": 1,
           "description": "How often to poll the usage API (minutes)."
-        },
-        "cursorUsage.stateDbPath": {
-          "type": "string",
-          "default": "",
-          "description": "Override path to Cursor state.vscdb (defaults: macOS ~/Library/Application Support/Cursor/User/globalStorage/state.vscdb, Windows %APPDATA%\\Cursor\\User\\globalStorage\\state.vscdb, Linux ~/.config/Cursor/User/globalStorage/state.vscdb)."
         }
       }
     }

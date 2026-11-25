@@ -13,8 +13,8 @@ export type StatusBarView =
       billingCycleEnd?: string;
     }
   | { kind: "error"; message: string; code?: UsageFetchErrorCode }
-  /** No usable authorization yet: clicking opens the setup picker. */
-  | { kind: "setup"; message: string };
+  /** Not signed in: clicking starts the browser sign-in. */
+  | { kind: "signin"; message: string };
 
 function formatCycleDate(iso: string): string {
   const d = new Date(iso);
@@ -44,11 +44,11 @@ export class UsageStatusBar {
 
   render(view: StatusBarView): void {
     this.item.command =
-      view.kind === "setup" ? "cursorUsage.setupAuth" : "cursorUsage.refresh";
+      view.kind === "signin" ? "cursorUsage.signIn" : "cursorUsage.refresh";
     switch (view.kind) {
-      case "setup":
-        this.item.text = "$(key) Usage: set up";
-        this.item.tooltip = `${view.message}\nClick to choose how to authorize Cursor Usage.`;
+      case "signin":
+        this.item.text = "$(key) Usage: sign in";
+        this.item.tooltip = `${view.message}\nClick to sign in with your browser (SSO supported).`;
         this.item.backgroundColor = new vscode.ThemeColor(
           "statusBarItem.warningBackground",
         );
